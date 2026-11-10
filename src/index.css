@@ -1,0 +1,172 @@
+/* 바람의나라 / 라그나로크 스타일 2D 픽셀 RPG 테마 */
+@import url('https://cdn.jsdelivr.net/gh/neodgm/neodgm-webfont@latest/neodgm/style.css');
+@import url('https://cdn.jsdelivr.net/npm/galmuri/dist/galmuri.css');
+
+@import "tailwindcss";
+
+:root {
+  --rpg-wood-dark: #2a1810;
+  --rpg-wood-mid: #4a2e1b;
+  --rpg-wood-light: #7a4e2d;
+  --rpg-border-outer: #150c08;
+  --rpg-border-inner: #b3854b;
+  --rpg-gold: #f5c542;
+  --rpg-bg: #121820;
+}
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  font-family: 'NeoDunggeunmo', 'Galmuri11', monospace, sans-serif;
+  image-rendering: pixelated;
+}
+
+body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: #080c14;
+  color: #fff;
+}
+
+/* 바람의나라/클래식 RPG 원목/양피지 윈도우 스타일 */
+.rpg-window {
+  background: #2b1d14;
+  border: 3px solid #6b4324;
+  outline: 2px solid #140b07;
+  box-shadow: inset 0 0 0 1px #9e6938, 4px 4px 0px rgba(0, 0, 0, 0.7);
+  position: relative;
+}
+
+.rpg-window-blue {
+  background: #111d2d;
+  border: 3px solid #284c77;
+  outline: 2px solid #080f17;
+  box-shadow: inset 0 0 0 1px #4679b8, 4px 4px 0px rgba(0, 0, 0, 0.7);
+  position: relative;
+}
+
+.rpg-panel-inset {
+  background: #150d09;
+  border: 2px solid #100a06;
+  border-top-color: #080503;
+  border-left-color: #080503;
+  border-bottom-color: #4a2e1b;
+  border-right-color: #4a2e1b;
+}
+
+.rpg-panel-inset-blue {
+  background: #0a111a;
+  border: 2px solid #05090f;
+  border-top-color: #03060a;
+  border-left-color: #03060a;
+  border-bottom-color: #1e3654;
+  border-right-color: #1e3654;
+}
+
+/* 바람의나라 스타일 버튼 */
+.rpg-btn {
+  background: linear-gradient(180deg, #7a4f2e 0%, #4a2e1b 100%);
+  border: 2px solid #9e6938;
+  border-top-color: #c4874c;
+  border-left-color: #c4874c;
+  border-bottom-color: #26160b;
+  border-right-color: #26160b;
+  color: #ffeed6;
+  text-shadow: 1px 1px 0 #140b07;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.6);
+  transition: transform 0.05s ease;
+}
+
+.rpg-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #8f5c35 0%, #5c3922 100%);
+}
+
+.rpg-btn:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  border-top-color: #26160b;
+  border-left-color: #26160b;
+  border-bottom-color: #c4874c;
+  border-right-color: #c4874c;
+  box-shadow: none;
+}
+
+.rpg-btn-gold {
+  background: linear-gradient(180deg, #e5a93b 0%, #a46f17 100%);
+  border: 2px solid #fbd06d;
+  border-top-color: #ffe6a3;
+  border-left-color: #ffe6a3;
+  border-bottom-color: #533606;
+  border-right-color: #533606;
+  color: #241402;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.4);
+  font-weight: bold;
+}
+
+.rpg-btn-gold:hover:not(:disabled) {
+  background: linear-gradient(180deg, #f7ba4c 0%, #b87f1e 100%);
+}
+
+.rpg-btn-blue {
+  background: linear-gradient(180deg, #2d588c 0%, #173456 100%);
+  border: 2px solid #4a84cb;
+  border-top-color: #7bb2f6;
+  border-left-color: #7bb2f6;
+  border-bottom-color: #0d1e33;
+  border-right-color: #0d1e33;
+  color: #e5f1ff;
+  text-shadow: 1px 1px 0 #060e18;
+}
+
+.rpg-btn-blue:hover:not(:disabled) {
+  background: linear-gradient(180deg, #386ba9 0%, #1e416a 100%);
+}
+
+.rpg-btn:disabled {
+  background: #2b2520;
+  border-color: #3d352e;
+  color: #73675c;
+  text-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 레이서 카드 (클래식 RPG 선택창) */
+.rpg-card {
+  background: #1c130d;
+  border: 2px solid #3d2516;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.1s ease;
+}
+
+.rpg-card:hover {
+  border-color: #8c5830;
+  transform: translateY(-2px);
+}
+
+.rpg-card.active {
+  background: #2d1a0e;
+  border: 2px solid #f5c542;
+  outline: 2px solid #f5c542;
+  outline-offset: -1px;
+}
+
+/* 말풍선 애니메이션 */
+@keyframes bubbleFloat {
+  0% { transform: translateY(0); opacity: 1; }
+  80% { transform: translateY(-16px); opacity: 1; }
+  100% { transform: translateY(-24px); opacity: 0; }
+}
+
+.rpg-speech-bubble {
+  animation: bubbleFloat 2.2s forwards ease-out;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
