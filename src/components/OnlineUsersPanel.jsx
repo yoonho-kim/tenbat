@@ -7,20 +7,54 @@ export default function OnlineUsersPanel() {
   const isAdmin = useStore((s) => s.isAdmin)
   const selectedRacerId = useStore((s) => s.selectedRacerId)
   const betAmount = useStore((s) => s.betAmount)
+  const connectionStatus = useStore((s) => s.connectionStatus)
+  const connectionErrorMsg = useStore((s) => s.connectionErrorMsg)
 
-  const users = Object.entries(onlineUsers)
-  const totalCount = users.length + 1
+  // 타 접속자 목록 (나 자신 제외)
+  const otherUsers = Object.entries(onlineUsers).filter(
+    ([, data]) => data?.nickname && data.nickname !== nickname
+  )
+  const totalCount = otherUsers.length + 1
 
   return (
-    <div className="rpg-window p-2 pointer-events-auto max-w-[210px] w-full text-amber-100 text-xs">
+    <div className="rpg-window p-2 pointer-events-auto max-w-[220px] w-full text-amber-100 text-xs shadow-lg">
       <div className="flex items-center justify-between border-b border-[#5c3a20] pb-1 mb-1.5">
-        <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
-          <span className="w-1.5 h-1.5 bg-emerald-400 inline-block animate-pulse"></span>
+        <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+          {connectionStatus === 'connected' && (
+            <span className="w-2 h-2 bg-emerald-400 rounded-full inline-block animate-pulse" title="실시간 동기화 정상"></span>
+          )}
+          {connectionStatus === 'connecting' && (
+            <span className="w-2 h-2 bg-amber-400 rounded-full inline-block animate-ping" title="서버 연결 중"></span>
+          )}
+          {(connectionStatus === 'error' || connectionStatus === 'permission_denied') && (
+            <span className="w-2 h-2 bg-rose-500 rounded-full inline-block" title="연결 오류"></span>
+          )}
           동시 관람객
         </span>
-        <span className="text-amber-400 font-bold text-[10px]">{totalCount}명</span>
+        <span className="text-amber-400 font-bold text-[10px]">
+          {connectionStatus === 'connected' ? `${totalCount}명` : '점검중'}
+        </span>
       </div>
-      
+
+      {/* 상태 경고 배너 */}
+      {connectionStatus === 'permission_denied' && (
+        <div className="bg-rose-950/90 border border-rose-600 p-1 mb-1.5 rounded text-[10px] text-rose-200 leading-tight">
+          ⚠️ <b>Firebase 보안 규칙 오류</b>
+          <p className="mt-0.5 text-[9px] text-rose-300">
+            Realtime DB의 <b>규칙(Rules)</b> 탭에서 <code>.read: true, .write: true</code>로 변경해주세요.
+          </p>
+        </div>
+      )}
+
+      {connectionStatus === 'error' && (
+        <div className="bg-amber-950/90 border border-amber-600 p-1 mb-1.5 rounded text-[10px] text-amber-200 leading-tight">
+          ⚠️ <b>Firebase 연결 오류</b>
+          <p className="mt-0.5 text-[9px] text-amber-300 truncate" title={connectionErrorMsg}>
+            {connectionErrorMsg || '환경변수 및 URL을 확인하세요.'}
+          </p>
+        </div>
+      )}
+
       <div className="rpg-panel-inset p-1 space-y-1 max-h-24 overflow-y-auto no-scrollbar text-[11px]">
         {/* 나 자신 */}
         <div className="flex items-center justify-between text-amber-200 bg-[#3a2416]/80 px-1 py-0.5 border border-[#8c5830]">
@@ -34,7 +68,7 @@ export default function OnlineUsersPanel() {
         </div>
 
         {/* 타 접속자들 */}
-        {users.map(([uid, data]) => (
+        {otherUsers.map(([uid, data]) => (
           <div key={uid} className="flex items-center justify-between text-amber-200/80 px-1 py-0.5">
             <span className="truncate max-w-[90px]">
               {data.isAdmin && <span className="text-amber-400 mr-0.5">👑</span>}

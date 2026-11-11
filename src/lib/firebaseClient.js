@@ -1,26 +1,47 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getDatabase } from 'firebase/database'
 
-// Firebase 프로젝트 환경 변수
-// .env 또는 Vercel 환경 변수에서 읽어옵니다.
+const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || ''
+const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || ''
+const explicitDbUrl = import.meta.env.VITE_FIREBASE_DATABASE_URL || ''
+
+// VITE_FIREBASE_DATABASE_URL이 누락되었더라도 projectId가 있으면 기본 URL 자동 유추
+const autoDbUrl =
+  explicitDbUrl.trim() ||
+  (projectId ? `https://${projectId}-default-rtdb.firebaseio.com` : '')
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDummyKeyForDevelopment1234567890',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'aqua-verse-demo.firebaseapp.com',
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || 'https://aqua-verse-demo-default-rtdb.firebaseio.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'aqua-verse-demo',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'aqua-verse-demo.appspot.com',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1234567890',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:1234567890:web:abcdef1234567890',
+  apiKey: apiKey.trim(),
+  authDomain: (
+    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ||
+    (projectId ? `${projectId}.firebaseapp.com` : '')
+  ).trim(),
+  databaseURL: autoDbUrl,
+  projectId: projectId.trim(),
+  storageBucket: (
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ||
+    (projectId ? `${projectId}.firebasestorage.app` : '')
+  ).trim(),
+  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim(),
+  appId: (import.meta.env.VITE_FIREBASE_APP_ID || '').trim(),
 }
 
 let app = null
 let db = null
+let initError = null
 
-try {
-  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
-  db = getDatabase(app)
-} catch (err) {
-  console.warn('Firebase init error (check your Firebase configuration):', err)
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  initError =
+    'Firebase 환경 변수(VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID 등)가 Vercel에 설정되지 않았거나 재빌드가 필요합니다.'
+  console.warn(initError)
+} else {
+  try {
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+    db = getDatabase(app, firebaseConfig.databaseURL || undefined)
+  } catch (err) {
+    initError = err?.message || 'Firebase 초기화 실패'
+    console.warn('Firebase init error:', err)
+  }
 }
 
-export { app, db }
+export { app, db, initError, firebaseConfig }

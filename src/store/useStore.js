@@ -29,9 +29,12 @@ const useStore = create((set, get) => ({
   broadcastText: '심해 아레나 오픈! NPC 배팅도우미에게 다가가 조개(🐚)를 배팅하세요.',
   muted: false,
 
-  // Online users
+  // Online users & Firebase status
   onlineUsers: {},
+  connectionStatus: 'connecting', // 'connecting' | 'connected' | 'error' | 'permission_denied' | 'offline'
+  connectionErrorMsg: '',
 
+  setConnectionStatus: (status, msg = '') => set({ connectionStatus: status, connectionErrorMsg: msg }),
   setOnlineUsers: (users) => set({ onlineUsers: users }),
   updateOnlineUser: (id, data) =>
     set((s) => ({
