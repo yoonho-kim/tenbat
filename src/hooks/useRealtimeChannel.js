@@ -1,196 +1,191 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import {
+  ref,
+  onValue,
+  set,
+  update,
+  remove,
+  onDisconnect,
+} from 'firebase/database'
+import { db } from '../lib/firebaseClient'
 import useStore from '../store/useStore'
 
 // 고유 접속 ID 생성
 const myId = crypto.randomUUID()
 
 export function useRealtimeChannel() {
-  const channelRef = useRef(null)
   const nickname = useStore((s) => s.nickname)
   const isAdmin = useStore((s) => s.isAdmin)
   const selectedRacerId = useStore((s) => s.selectedRacerId)
   const betAmount = useStore((s) => s.betAmount)
   const setOnlineUsers = useStore((s) => s.setOnlineUsers)
-  const updateOnlineUser = useStore((s) => s.updateOnlineUser)
-  const removeOnlineUser = useStore((s) => s.removeOnlineUser)
+
+  const userRefRef = useRef(null)
+  const chatRefRef = useRef(null)
+  const cheerRefRef = useRef(null)
+  const controlRefRef = useRef(null)
 
   useEffect(() => {
-    if (!nickname) return
+    if (!db || !nickname) return
 
-    let channel = null
-    try {
-      channel = supabase.channel('aqua-verse-room', {
-        config: {
-          broadcast: { self: false },
-          presence: { key: myId },
-        },
-      })
+    const connectedRef = ref(db, '.info/connected')
+    const userRef = ref(db, `rooms/aqua-verse/users/${myId}`)
+    const usersRef = ref(db, 'rooms/aqua-verse/users')
+    const chatRef = ref(db, 'rooms/aqua-verse/latestChat')
+    const cheerRef = ref(db, 'rooms/aqua-verse/latestCheer')
+    const controlRef = ref(db, 'rooms/aqua-verse/gameControl')
 
-      // Presence: 접속/퇴장 동기화
-      channel.on('presence', { event: 'sync' }, () => {
-        try {
-          const presenceState = channel.presenceState()
-          const users = {}
-          Object.entries(presenceState).forEach(([key, entries]) => {
-            if (entries.length > 0) {
-              users[key] = entries[0]
-            }
-          })
-          setOnlineUsers(users)
-        } catch (e) {
-          console.warn('Presence sync error:', e)
-        }
-      })
+    userRefRef.current = userRef
+    chatRefRef.current = chatRef
+    cheerRefRef.current = cheerRef
+    controlRefRef.current = controlRef
 
-      channel.on('presence', { event: 'leave' }, ({ key }) => {
-        removeOnlineUser(key)
-      })
+    // 1. 접속 및 Presence 감지
+    const unsubConnected = onValue(connectedRef, (snap) => {
+      if (snap.val() === true) {
+        // 탭 종료 또는 네트워크 끊김 시 자동 삭제
+        onDisconnect(userRef).remove().catch(() => {})
 
-      // Broadcast: 아바타 위치
-      channel.on('broadcast', { event: 'avatar_move' }, ({ payload }) => {
-        updateOnlineUser(payload.userId, {
-          avatarX: payload.x,
-          avatarZ: payload.z,
-          avatarRotY: payload.rotY,
-        })
-      })
+        // 현재 유저 등록
+        set(userRef, {
+          userId: myId,
+          nickname,
+          isAdmin: !!isAdmin,
+          avatarX: 400,
+          avatarZ: 350,
+          avatarRotY: 'down',
+          betRacerId: selectedRacerId ?? 0,
+          betAmount: betAmount ?? 100,
+          joinedAt: Date.now(),
+        }).catch((e) => console.warn('User register error:', e))
+      }
+    })
 
-      // Broadcast: 배팅 현황
-      channel.on('broadcast', { event: 'bet_placed' }, ({ payload }) => {
-        updateOnlineUser(payload.userId, {
-          betRacerId: payload.racerId,
-          betAmount: payload.amount,
-          nickname: payload.nickname,
-        })
-      })
+    // 2. 전체 온라인 유저 목록 실시간 동기화
+    const unsubUsers = onValue(usersRef, (snap) => {
+      try {
+        const data = snap.val() || {}
+        setOnlineUsers(data)
+      } catch (e) {
+        console.warn('Sync users error:', e)
+      }
+    })
 
-      // Broadcast: 응원 이모지
-      channel.on('broadcast', { event: 'cheer' }, ({ payload }) => {
-        window.dispatchEvent(
-          new CustomEvent('remote-cheer', { detail: payload })
-        )
-      })
+    // 3. 실시간 말풍선 채팅 수신
+    let lastHandledChatId = null
+    const unsubChat = onValue(chatRef, (snap) => {
+      const payload = snap.val()
+      if (!payload || !payload.id || payload.id === lastHandledChatId) return
+      lastHandledChatId = payload.id
 
-      // Broadcast: 실시간 채팅 메시지 (머리 위 말풍선)
-      channel.on('broadcast', { event: 'chat_message' }, ({ payload }) => {
+      if (payload.userId !== myId && Date.now() - (payload.timestamp || 0) < 6000) {
         window.dispatchEvent(
           new CustomEvent('remote-chat', { detail: payload })
         )
-      })
+      }
+    })
 
-      // Broadcast: 레이스 시작 (관리자 → 전체)
-      channel.on('broadcast', { event: 'race_start' }, ({ payload }) => {
+    // 4. 응원 이모지 수신
+    let lastHandledCheerId = null
+    const unsubCheer = onValue(cheerRef, (snap) => {
+      const payload = snap.val()
+      if (!payload || !payload.id || payload.id === lastHandledCheerId) return
+      lastHandledCheerId = payload.id
+
+      if (payload.userId !== myId && Date.now() - (payload.timestamp || 0) < 6000) {
         window.dispatchEvent(
-          new CustomEvent('remote-race-start', { detail: payload })
+          new CustomEvent('remote-cheer', { detail: payload })
         )
-      })
+      }
+    })
 
-      // Broadcast: 조개 충전 (관리자 → 전체)
-      channel.on('broadcast', { event: 'refill' }, ({ payload }) => {
-        window.dispatchEvent(
-          new CustomEvent('remote-refill', { detail: payload })
-        )
-      })
+    // 5. 관리자 게임 제어 (시작, 리필, 다음라운드) 수신
+    let lastHandledControlId = null
+    const unsubControl = onValue(controlRef, (snap) => {
+      const payload = snap.val()
+      if (!payload || !payload.id || payload.id === lastHandledControlId) return
+      lastHandledControlId = payload.id
 
-      // Broadcast: 다음 라운드 (관리자 → 전체)
-      channel.on('broadcast', { event: 'next_round' }, ({ payload }) => {
-        window.dispatchEvent(
-          new CustomEvent('remote-next-round', { detail: payload })
-        )
-      })
-
-      channel.subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          try {
-            await channel.track({
-              nickname,
-              isAdmin,
-              avatarX: 0,
-              avatarZ: 18,
-              avatarRotY: 0,
-              betRacerId: selectedRacerId,
-              betAmount: betAmount,
-              joinedAt: Date.now(),
-            })
-          } catch (e) {
-            console.warn('Channel track error:', e)
-          }
+      if (payload.userId !== myId && Date.now() - (payload.timestamp || 0) < 10000) {
+        if (payload.event === 'race_start') {
+          window.dispatchEvent(
+            new CustomEvent('remote-race-start', { detail: payload })
+          )
+        } else if (payload.event === 'refill') {
+          window.dispatchEvent(
+            new CustomEvent('remote-refill', { detail: payload })
+          )
+        } else if (payload.event === 'next_round') {
+          window.dispatchEvent(
+            new CustomEvent('remote-next-round', { detail: payload })
+          )
         }
-      })
-
-      channelRef.current = channel
-    } catch (err) {
-      console.warn('Supabase Realtime Channel init error:', err)
-    }
+      }
+    })
 
     return () => {
-      if (channelRef.current) {
-        channelRef.current.unsubscribe()
-        channelRef.current = null
+      unsubConnected()
+      unsubUsers()
+      unsubChat()
+      unsubCheer()
+      unsubControl()
+      if (userRef) {
+        remove(userRef).catch(() => {})
       }
+      userRefRef.current = null
+      chatRefRef.current = null
+      cheerRefRef.current = null
+      controlRefRef.current = null
     }
-  }, [nickname, isAdmin])
+  }, [nickname, isAdmin, setOnlineUsers])
 
-  // Presence 업데이트
+  // Presence/데이터 업데이트
   const updatePresence = useCallback(
     (data) => {
-      if (!channelRef.current) return
-      try {
-        channelRef.current.track({
-          nickname,
-          isAdmin,
-          ...data,
-        })
-      } catch (e) {
-        console.warn('Presence update error:', e)
-      }
+      if (!userRefRef.current) return
+      update(userRefRef.current, {
+        nickname,
+        isAdmin: !!isAdmin,
+        ...data,
+      }).catch(() => {})
     },
     [nickname, isAdmin]
   )
 
   // 아바타 위치 브로드캐스트
-  const broadcastAvatarMove = useCallback(
-    (x, z, rotY) => {
-      if (!channelRef.current) return
-      try {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'avatar_move',
-          payload: { userId: myId, x, z, rotY },
-        })
-      } catch (e) {}
-    },
-    []
-  )
+  const broadcastAvatarMove = useCallback((x, z, rotY) => {
+    if (!userRefRef.current) return
+    update(userRefRef.current, {
+      avatarX: x,
+      avatarZ: z,
+      avatarRotY: rotY,
+    }).catch(() => {})
+  }, [])
 
-  // 배팅 현황 브로드캐스트 & presence 동기화
+  // 배팅 현황 브로드캐스트
   const broadcastBet = useCallback(
     (racerId, amount) => {
-      if (!channelRef.current) return
-      try {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'bet_placed',
-          payload: { userId: myId, racerId, amount, nickname },
-        })
-        updatePresence({ betRacerId: racerId, betAmount: amount })
-      } catch (e) {}
+      if (!userRefRef.current) return
+      update(userRefRef.current, {
+        betRacerId: racerId,
+        betAmount: amount,
+        nickname,
+      }).catch(() => {})
     },
-    [nickname, updatePresence]
+    [nickname]
   )
 
   // 응원 이모지 브로드캐스트
   const broadcastCheer = useCallback(
     (emoji) => {
-      if (!channelRef.current) return
-      try {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'cheer',
-          payload: { userId: myId, emoji, nickname },
-        })
-      } catch (e) {}
+      if (!cheerRefRef.current) return
+      set(cheerRefRef.current, {
+        id: crypto.randomUUID(),
+        userId: myId,
+        emoji,
+        nickname,
+        timestamp: Date.now(),
+      }).catch(() => {})
     },
     [nickname]
   )
@@ -198,63 +193,57 @@ export function useRealtimeChannel() {
   // 실시간 채팅 메시지 브로드캐스트 (머리 위 말풍선)
   const broadcastChat = useCallback(
     (message) => {
-      if (!channelRef.current || !message) return
-      try {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'chat_message',
-          payload: { userId: myId, message, nickname, timestamp: Date.now() },
-        })
-      } catch (e) {}
+      if (!chatRefRef.current || !message) return
+      set(chatRefRef.current, {
+        id: crypto.randomUUID(),
+        userId: myId,
+        message,
+        nickname,
+        timestamp: Date.now(),
+      }).catch(() => {})
     },
     [nickname]
   )
 
   // 레이스 시작 브로드캐스트 (관리자만)
-  const broadcastRaceStart = useCallback(
-    () => {
-      if (!channelRef.current) return
-      try {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'race_start',
-          payload: { userId: myId, nickname, timestamp: Date.now() },
-        })
-      } catch (e) {}
-    },
-    [nickname]
-  )
+  const broadcastRaceStart = useCallback(() => {
+    if (!controlRefRef.current) return
+    set(controlRefRef.current, {
+      id: crypto.randomUUID(),
+      event: 'race_start',
+      userId: myId,
+      nickname,
+      timestamp: Date.now(),
+    }).catch(() => {})
+  }, [nickname])
 
   // 충전 브로드캐스트 (관리자만)
-  const broadcastRefill = useCallback(
-    () => {
-      if (!channelRef.current) return
-      try {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'refill',
-          payload: { userId: myId, nickname, timestamp: Date.now() },
-        })
-      } catch (e) {}
-    },
-    [nickname]
-  )
+  const broadcastRefill = useCallback(() => {
+    if (!controlRefRef.current) return
+    set(controlRefRef.current, {
+      id: crypto.randomUUID(),
+      event: 'refill',
+      userId: myId,
+      nickname,
+      timestamp: Date.now(),
+    }).catch(() => {})
+  }, [nickname])
 
   // 다음 라운드 브로드캐스트 (관리자만)
-  const broadcastNextRound = useCallback(
-    () => {
-      if (!channelRef.current) return
-      try {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'next_round',
-          payload: { userId: myId, nickname, timestamp: Date.now() },
-        })
-        updatePresence({ betRacerId: 0, betAmount: 100 })
-      } catch (e) {}
-    },
-    [nickname, updatePresence]
-  )
+  const broadcastNextRound = useCallback(() => {
+    if (!controlRefRef.current) return
+    set(controlRefRef.current, {
+      id: crypto.randomUUID(),
+      event: 'next_round',
+      userId: myId,
+      nickname,
+      timestamp: Date.now(),
+    }).catch(() => {})
+
+    if (userRefRef.current) {
+      update(userRefRef.current, { betRacerId: 0, betAmount: 100 }).catch(() => {})
+    }
+  }, [nickname])
 
   return {
     myId,
