@@ -28,6 +28,9 @@ const useStore = create((set, get) => ({
   finishOrder: [],
   broadcastText: '심해 아레나 오픈! NPC 배팅도우미에게 다가가 조개(🐚)를 배팅하세요.',
   muted: false,
+  isMobileRotate: false, // 가로 강제 회전 모드
+
+  toggleMobileRotate: () => set((s) => ({ isMobileRotate: !s.isMobileRotate })),
 
   // Online users & Firebase status
   onlineUsers: {},

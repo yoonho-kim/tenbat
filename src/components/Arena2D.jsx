@@ -181,22 +181,22 @@ export default function Arena2D({ realtimeChannel }) {
       const clickX = (e.clientX - rect.left) * scaleX
       const clickY = (e.clientY - rect.top) * scaleY
 
-      // 배팅 도우미 NPC를 직접 클릭했는지 확인 (반경 35px)
+      // 배팅 도우미 NPC를 직접 클릭/터치했는지 확인 (모바일 터치 편의를 위해 반경 50px로 확대)
       const distToNpc = Math.hypot(clickX - BETTING_NPC.x, clickY - BETTING_NPC.y)
-      if (distToNpc < 35) {
+      if (distToNpc < 50) {
         // 도우미 바로 앞으로 이동 설정 후 모달 열기
         targetPosRef.current = { x: BETTING_NPC.x, y: BETTING_NPC.y + 25 }
-        clickPingRef.current = { x: BETTING_NPC.x, y: BETTING_NPC.y, life: 25, isNpc: true }
+        clickPingRef.current = { x: BETTING_NPC.x, y: BETTING_NPC.y, life: 30, isNpc: true }
         setBettingModalOpen(true)
         return
       }
 
-      // 관람석 데크 영역 클릭 시 이동
-      if (clickY >= 230 && clickY <= 460) {
+      // 관람석 데크 영역 클릭 시 이동 (모바일 터치 편의를 위해 Y 범위 확장)
+      if (clickY >= 210 && clickY <= 470) {
         const clampedX = Math.max(50, Math.min(750, clickX))
         const clampedY = Math.max(250, Math.min(450, clickY))
         targetPosRef.current = { x: clampedX, y: clampedY }
-        clickPingRef.current = { x: clampedX, y: clampedY, life: 20, isNpc: false }
+        clickPingRef.current = { x: clampedX, y: clampedY, life: 30, isNpc: false }
       }
     }
     canvas.addEventListener('pointerdown', handleCanvasPointerDown)
@@ -531,16 +531,22 @@ export default function Arena2D({ realtimeChannel }) {
         drawSpeechBubble(ctx, BETTING_NPC.x, BETTING_NPC.y - 32, '💡 클릭시 배팅창 오픈!')
       }
 
-      // (D) 마우스/터치 클릭 핑 이펙트
+      // (D) 마우스/터치 클릭 핑 이펙트 (모바일 터치 시 선명하게 인식)
       if (clickPingRef.current && clickPingRef.current.life > 0) {
         const cp = clickPingRef.current
         cp.life--
-        const radius = (25 - cp.life) * 1.2
+        const radius = (30 - cp.life) * 1.4
         ctx.strokeStyle = cp.isNpc ? '#fde047' : '#22c55e'
         ctx.lineWidth = 2
         ctx.beginPath()
-        ctx.arc(cp.x, cp.y, radius, 0, Math.PI * 2)
+        ctx.arc(cp.x, cp.y, Math.max(1, radius), 0, Math.PI * 2)
         ctx.stroke()
+
+        // 중심 터치 점
+        ctx.fillStyle = cp.isNpc ? 'rgba(253, 224, 71, 0.6)' : 'rgba(34, 197, 94, 0.6)'
+        ctx.beginPath()
+        ctx.arc(cp.x, cp.y, 4, 0, Math.PI * 2)
+        ctx.fill()
       }
 
       // (E) 타 접속자(원격 유저) 렌더링 (실제 접속자만)
@@ -595,13 +601,13 @@ export default function Arena2D({ realtimeChannel }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-slate-950 overflow-hidden">
-      {/* 2D Retro Canvas (800x480 Virtual Resolution) - Full View Fit */}
+    <div className="fixed inset-0 flex flex-col justify-start sm:justify-center items-center pt-10 sm:pt-0 bg-slate-950 overflow-hidden">
+      {/* 2D Retro Canvas (800x480 Virtual Resolution) - 모바일 세로 시 상단 배치 / 가로 및 PC 시 풀뷰 */}
       <canvas
         ref={canvasRef}
         width={800}
         height={480}
-        className="w-full h-full object-contain cursor-pointer shadow-2xl select-none"
+        className="w-full max-h-[46vh] sm:max-h-none sm:h-full object-contain cursor-pointer shadow-2xl select-none"
         style={{ imageRendering: 'pixelated', touchAction: 'none' }}
       />
     </div>

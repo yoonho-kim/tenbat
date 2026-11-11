@@ -12,12 +12,14 @@ export default function GameHUD({ realtimeChannel }) {
     setBroadcastText, setMuted, setRaceStartTime, setFinishOrder, setCountdownNumber,
     adjustBet, setBetHalf, setBetMax, resetBet, refillClams, deductBet,
     addWinnings, prepareNextRound, selectRacer,
+    isMobileRotate, toggleMobileRotate,
   } = useStore()
 
   const [showResult, setShowResult] = useState(false)
   const [resultData, setResultData] = useState(null)
   const [walletDelta, setWalletDelta] = useState(null)
   const [chatInput, setChatInput] = useState('')
+  const [showMobileUsers, setShowMobileUsers] = useState(false)
   const chatInputRef = useRef(null)
   const betAmountAtStart = useRef(0)
 
@@ -285,13 +287,33 @@ export default function GameHUD({ realtimeChannel }) {
               </div>
             </div>
 
-            {/* 우측: 배팅 장부 버튼 & 조개 & 소리 */}
+            {/* 우측: 모바일 회전 / 관람객 / 지갑 / 소리 */}
             <div className="flex items-center gap-1.5 shrink-0">
-              {/* NPC 배팅 장부 열기 퀵버튼 */}
+              {/* 모바일 화면 회전 토글 버튼 */}
+              <button
+                onClick={toggleMobileRotate}
+                className="px-2 py-0.5 rpg-btn text-[10px] font-bold flex items-center gap-1 sm:hidden text-amber-200"
+                title="가로/세로 화면 회전"
+              >
+                <span>🔄</span>
+                <span>{isMobileRotate ? '세로' : '가로'}</span>
+              </button>
+
+              {/* 모바일 접속자 수 버튼 */}
+              <button
+                onClick={() => setShowMobileUsers(true)}
+                className="px-2 py-0.5 rpg-btn text-[10px] font-bold flex items-center gap-1 sm:hidden text-emerald-300"
+                title="접속자 목록 보기"
+              >
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full inline-block animate-pulse"></span>
+                <span>{Object.keys(onlineUsers).length + 1}명</span>
+              </button>
+
+              {/* NPC 배팅 장부 열기 퀵버튼 (PC 전용) */}
               {phase === 'BETTING' && (
                 <button
                   onClick={() => setBettingModalOpen(true)}
-                  className="px-2 py-0.5 rpg-btn-gold text-[10px] font-bold flex items-center gap-1 shadow"
+                  className="hidden sm:flex px-2 py-0.5 rpg-btn-gold text-[10px] font-bold items-center gap-1 shadow"
                   title="배팅 도우미에게 가거나 이 버튼을 클릭하세요"
                 >
                   <span>📜</span>
@@ -361,15 +383,19 @@ export default function GameHUD({ realtimeChannel }) {
             </div>
           )}
 
-          {/* 우측 하단: 동시 관람객 패널 */}
-          <div className="absolute bottom-1 right-1 pointer-events-auto">
+          {/* 우측 하단: 동시 관람객 패널 (PC 전용) */}
+          <div className="absolute bottom-1 right-1 pointer-events-auto hidden sm:block">
             <OnlineUsersPanel />
           </div>
+
+          {/* 모바일 관람객 팝업 모달 */}
+          {showMobileUsers && (
+            <OnlineUsersPanel isMobileModal onClose={() => setShowMobileUsers(false)} />
+          )}
         </div>
 
-        {/* BOTTOM SECTION: 1줄 대화 입력바 & 레이스 조작바 */}
-        <div className="w-full max-w-2xl mx-auto pointer-events-auto flex flex-col gap-1 items-center mb-1">
-          
+        {/* BOTTOM SECTION - PC 화면용 (sm 이상) */}
+        <div className="w-full max-w-2xl mx-auto pointer-events-auto hidden sm:flex flex-col gap-1 items-center mb-1">
           {/* 레이스 진행 중일 때만 뜨는 스킬 조작창 (해류 부스트 / 응원) */}
           {(phase === 'RACING' || phase === 'COUNTDOWN') && (
             <div className="rpg-window px-3 py-1.5 flex items-center justify-between gap-3 shadow-xl w-full">
@@ -433,6 +459,95 @@ export default function GameHUD({ realtimeChannel }) {
             </form>
           </div>
         </div>
+
+        {/* BOTTOM SECTION - 모바일 전용 터치 최적화 액션 데크 (sm 미만) */}
+        <div className="w-full flex sm:hidden flex-col gap-1.5 p-2 bg-[#170e08]/95 border-t-2 border-[#8c5830] backdrop-blur-sm pointer-events-auto shadow-2xl">
+          {/* Row 1: 주요 액션 버튼 (배팅 장부 / 관리자 제어 / 조개 충전) */}
+          <div className="flex items-center gap-1.5">
+            {phase === 'BETTING' && (
+              <button
+                onClick={() => { sfx.click(); setBettingModalOpen(true) }}
+                className="flex-1 py-2 px-2.5 rpg-btn-gold text-xs font-bold flex items-center justify-center gap-1.5 shadow active:scale-95 transition-transform"
+              >
+                <span className="text-sm">📜</span>
+                <span className="truncate">배팅 장부 [{picked.emoji} {betAmount}🐚]</span>
+              </button>
+            )}
+
+            {isAdmin && phase === 'BETTING' && (
+              <button
+                onClick={() => handleStartRace(false)}
+                className="py-2 px-3 bg-gradient-to-b from-amber-500 to-rose-700 border-2 border-amber-300 text-amber-100 text-xs font-bold flex items-center gap-1 shadow active:scale-95 transition-transform animate-pulse"
+              >
+                <span>⚔️</span>
+                <span>시작</span>
+              </button>
+            )}
+
+            {isAdmin && phase === 'RESULT' && (
+              <button
+                onClick={() => handleNextRound(false)}
+                className="flex-1 py-2 px-2.5 rpg-btn-gold text-xs font-bold flex items-center justify-center gap-1.5 shadow active:scale-95 transition-transform"
+              >
+                <span>⚔️</span>
+                <span>다음 회전 시작</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleRefill}
+              className="py-2 px-2.5 rpg-btn text-xs font-bold text-amber-300 shrink-0 flex items-center gap-1 active:scale-95"
+              title="조개 충전"
+            >
+              <span>🐚</span>
+              <span>+500</span>
+            </button>
+          </div>
+
+          {/* Row 2: 레이스 스킬 or 원터치 응원 이모지 바 */}
+          <div className="flex items-center justify-between gap-1 overflow-x-auto no-scrollbar py-0.5">
+            {(phase === 'RACING' || phase === 'COUNTDOWN') && (
+              <button
+                onClick={handleWaterBoost}
+                className="rpg-btn-blue py-1.5 px-2.5 text-xs font-bold shrink-0 flex items-center gap-1 active:scale-95"
+              >
+                <span>🌊 부스트</span>
+                <span className="text-[10px] text-amber-300 font-mono-num">-10🐚</span>
+              </button>
+            )}
+
+            {['🦐', '🦀', '🦞', '🐙', '🔥', '🎉', '👏'].map((emo) => (
+              <button
+                key={emo}
+                onClick={() => handleCheer(emo)}
+                className="rpg-btn w-8 h-8 flex items-center justify-center text-base shrink-0 active:scale-90 transition-transform"
+              >
+                {emo}
+              </button>
+            ))}
+          </div>
+
+          {/* Row 3: 모바일 1줄 채팅창 */}
+          <form onSubmit={handleChatSubmit} className="flex items-center gap-1.5">
+            <div className="rpg-panel-inset flex-1 px-2 py-1 flex items-center">
+              <input
+                ref={chatInputRef}
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="대화 입력 (캐릭터 머리 위 말풍선)..."
+                maxLength={30}
+                className="w-full bg-transparent text-xs text-amber-100 placeholder-amber-800/80 focus:outline-none"
+              />
+            </div>
+            <button
+              type="submit"
+              className="rpg-btn px-3 py-1 text-xs font-bold text-amber-200 shrink-0 active:scale-95"
+            >
+              말하기
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* ========================================================
@@ -440,7 +555,7 @@ export default function GameHUD({ realtimeChannel }) {
           ======================================================== */}
       {isBettingModalOpen && phase === 'BETTING' && (
         <div className="fixed inset-0 z-40 flex items-center justify-center p-3 bg-black/60 backdrop-blur-[2px] font-pixel text-amber-100">
-          <div className="rpg-window max-w-lg w-full p-3.5 sm:p-4 shadow-2xl relative">
+          <div className="rpg-window max-w-lg w-full max-h-[92vh] overflow-y-auto p-3.5 sm:p-4 shadow-2xl relative">
             
             {/* 모달 헤더 */}
             <div className="flex items-center justify-between border-b-2 border-[#5c3a20] pb-2 mb-2.5">
